@@ -63,7 +63,7 @@ const ReportScanner = () => {
     formData.append("file", uploadedFile);
 
     try {
-      const response = await axios.post("http://localhost:8000/interpret-report", formData, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/interpret-report`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
