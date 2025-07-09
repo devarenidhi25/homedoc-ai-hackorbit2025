@@ -79,3 +79,42 @@ def predict(request: SymptomRequest):
         return {"error": str(e)}
 
 
+class RemedyRequest(BaseModel):
+    user_input: str
+
+
+@app.post("/chat")
+async def chat_remedy(data: RemedyRequest):
+    reply = get_remedy_reply(data.user_input)
+    return {"reply": reply}
+
+
+@app.post("/interpret-report")
+async def interpret_report(file: UploadFile = File(...)):
+    try:
+        suffix = os.path.splitext(file.filename)[-1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(await file.read())
+            tmp_path = tmp.name
+
+        if suffix.lower() in [".pdf"]:
+            extracted_text = report_interpreter.extract_text_from_pdf(tmp_path)
+        elif suffix.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]:
+            extracted_text = report_interpreter.extract_text_from_image(tmp_path)
+        else:
+            return JSONResponse(status_code=400, content={"error": "Unsupported file type."})
+
+        if not extracted_text:
+            return JSONResponse(status_code=400, content={"error": "No readable text found in file."})
+
+        raw_response = report_interpreter.get_gemini_analysis(extracted_text, file.filename)
+
+        try:
+            cleaned = raw_response.strip().strip('```json').strip('```')
+            parsed = json.loads(cleaned)
+            return parsed
+        except Exception:
+            return {"error": "Gemini returned an unreadable format", "raw": raw_response}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
